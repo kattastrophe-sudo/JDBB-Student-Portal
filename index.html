@@ -651,6 +651,7 @@
         </div>
     </div>
 
+    <script src="https://docs.getgrist.com/grist-plugin-api.js"></script>
     <script>
         // Grist configuration
         const GRIST_API_KEY = '0bf2f84df27f80e835b35afa760c603a6e90ba11';
@@ -660,6 +661,8 @@
         let currentStudent = null;
         let categories = [];
         let allItems = [];
+        let isGristWidget = false;
+        let gristReady = false;
 
         // Helper function to make Grist API calls
         async function gristAPI(endpoint, method = 'GET', data = null) {
@@ -688,9 +691,14 @@
             }
         }
 
-        // Login handler
+        // Login handler (for standalone mode)
         document.getElementById('loginForm').addEventListener('submit', async function(e) {
             e.preventDefault();
+            
+            // Don't allow manual login if in widget mode
+            if (isGristWidget && gristReady) {
+                return;
+            }
             
             const email = document.getElementById('emailInput').value.trim().toLowerCase();
             const messageDiv = document.getElementById('loginMessage');
@@ -716,7 +724,7 @@
                         studentNumber: student.fields.StudentNumber
                     };
                     
-                    // Store in session
+                    // Store in session (standalone mode only)
                     sessionStorage.setItem('currentStudent', JSON.stringify(currentStudent));
                     
                     // Show main app
@@ -735,6 +743,12 @@
             document.getElementById('mainApp').classList.add('active');
             document.getElementById('studentName').textContent = currentStudent.name;
             
+            // Only show logout button in standalone mode
+            const logoutBtn = document.querySelector('.logout-btn');
+            if (logoutBtn) {
+                logoutBtn.style.display = isGristWidget ? 'none' : 'block';
+            }
+            
             // Load all data
             loadCategories();
             loadDashboard();
@@ -742,22 +756,81 @@
         }
 
         function logout() {
-            sessionStorage.removeItem('currentStudent');
-            currentStudent = null;
-            document.getElementById('loginScreen').style.display = 'flex';
-            document.getElementById('mainApp').classList.remove('active');
-            document.getElementById('emailInput').value = '';
-            document.getElementById('loginMessage').innerHTML = '';
+            if (isGristWidget) {
+                // In widget mode, just refresh
+                location.reload();
+            } else {
+                // In standalone mode, clear session
+                sessionStorage.removeItem('currentStudent');
+                currentStudent = null;
+                document.getElementById('loginScreen').style.display = 'flex';
+                document.getElementById('mainApp').classList.remove('active');
+                document.getElementById('emailInput').value = '';
+                document.getElementById('loginMessage').innerHTML = '';
+            }
         }
 
         // Check if already logged in
         window.addEventListener('load', function() {
+            // Initialize Grist widget connection
+            initializeGristWidget();
+            
+            // Check session storage for standalone mode
             const stored = sessionStorage.getItem('currentStudent');
-            if (stored) {
+            if (stored && !isGristWidget) {
                 currentStudent = JSON.parse(stored);
                 showMainApp();
             }
         });
+
+        // Initialize Grist Widget mode
+        function initializeGristWidget() {
+            try {
+                grist.ready({
+                    requiredAccess: 'read table',
+                    columns: [
+                        { name: 'StudentID', optional: false },
+                        { name: 'Email', optional: false },
+                        { name: 'LegalName', optional: false },
+                        { name: 'PreferredName', optional: true },
+                        { name: 'StudentNumber', optional: true }
+                    ]
+                });
+                
+                grist.onRecord(function(record) {
+                    if (record && record.id) {
+                        console.log('Grist widget mode: Record received', record);
+                        isGristWidget = true;
+                        gristReady = true;
+                        
+                        // Student selected in Grist - auto login
+                        currentStudent = {
+                            id: record.id,
+                            studentId: record.StudentID || record.id,
+                            name: record.PreferredName || record.LegalName || 'Student',
+                            email: record.Email || '',
+                            studentNumber: record.StudentNumber || ''
+                        };
+                        
+                        showMainApp();
+                    }
+                });
+                
+                // Show appropriate message after 1 second if no record
+                setTimeout(() => {
+                    if (!gristReady) {
+                        console.log('Standalone mode: No Grist widget detected');
+                        // Show login screen for standalone mode
+                        document.getElementById('loginScreen').style.display = 'flex';
+                    }
+                }, 1000);
+                
+            } catch (error) {
+                console.log('Not running as Grist widget, using standalone mode');
+                isGristWidget = false;
+                document.getElementById('loginScreen').style.display = 'flex';
+            }
+        }
 
         async function loadCategories() {
             try {
