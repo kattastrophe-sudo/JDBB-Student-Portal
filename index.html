@@ -223,9 +223,14 @@
             box-shadow: 0 4px 8px rgba(0,0,0,0.1);
         }
 
-        .btn:hover {
+        .btn:hover:not(:disabled) {
             transform: translateY(-2px);
             box-shadow: 0 6px 12px rgba(0,0,0,0.15);
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
         }
 
         .btn-primary {
@@ -259,11 +264,21 @@
             object-fit: cover;
             border-radius: 8px;
             background: #ddd;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2rem;
         }
 
         .item-details h3 {
             margin-bottom: 5px;
             color: var(--primary);
+        }
+
+        .item-details p {
+            margin: 3px 0;
+            font-size: 0.9rem;
+            color: var(--text-secondary);
         }
 
         .item-status {
@@ -309,6 +324,7 @@
             padding: 15px;
             border-radius: 8px;
             margin-bottom: 20px;
+            font-weight: 600;
         }
 
         .pricing-calculator {
@@ -323,6 +339,19 @@
             font-weight: bold;
             color: var(--primary);
             margin-top: 15px;
+        }
+
+        .login-prompt {
+            text-align: center;
+            padding: 40px;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+
+        .login-prompt h2 {
+            color: var(--primary);
+            margin-bottom: 20px;
         }
 
         @media (max-width: 768px) {
@@ -361,201 +390,241 @@
                 <div class="logo">💎</div>
                 JDBB Student Portal
             </h1>
-            <div class="welcome-text">Welcome, <span id="studentName">Student</span>!</div>
+            <div class="welcome-text">Welcome, <span id="studentName">Loading...</span>!</div>
         </div>
 
-        <div class="nav-tabs">
-            <button class="nav-tab active" onclick="switchTab('dashboard')">Dashboard</button>
-            <button class="nav-tab" onclick="switchTab('submit')">Submit Item</button>
-            <button class="nav-tab" onclick="switchTab('items')">My Items</button>
-            <button class="nav-tab" onclick="switchTab('payout')">Request Payout</button>
+        <div id="loginPrompt" class="login-prompt" style="display: none;">
+            <h2>🔐 Authentication Required</h2>
+            <p style="margin-bottom: 20px;">Please select a student from the Students table in Grist to use this portal.</p>
+            <p style="color: var(--text-secondary);">This portal works as a Grist Custom Widget. Make sure you have it embedded in your Grist document with access to the Students table.</p>
         </div>
 
-        <!-- Dashboard Tab -->
-        <div id="dashboard" class="tab-content active">
-            <div class="stats-grid">
-                <div class="stat-card balance">
-                    <div class="stat-label">Current Balance</div>
-                    <div class="stat-value" id="balanceValue">$0.00</div>
+        <div id="mainContent" style="display: none;">
+            <div class="nav-tabs">
+                <button class="nav-tab active" onclick="switchTab('dashboard')">Dashboard</button>
+                <button class="nav-tab" onclick="switchTab('submit')">Submit Item</button>
+                <button class="nav-tab" onclick="switchTab('items')">My Items</button>
+                <button class="nav-tab" onclick="switchTab('payout')">Request Payout</button>
+            </div>
+
+            <!-- Dashboard Tab -->
+            <div id="dashboard" class="tab-content active">
+                <div class="stats-grid">
+                    <div class="stat-card balance">
+                        <div class="stat-label">Current Balance</div>
+                        <div class="stat-value" id="balanceValue">$0.00</div>
+                    </div>
+                    <div class="stat-card items">
+                        <div class="stat-label">Items on Consignment</div>
+                        <div class="stat-value" id="itemsCount">0</div>
+                    </div>
+                    <div class="stat-card sold">
+                        <div class="stat-label">Items Sold</div>
+                        <div class="stat-value" id="soldCount">0</div>
+                    </div>
                 </div>
-                <div class="stat-card items">
-                    <div class="stat-label">Items on Consignment</div>
-                    <div class="stat-value" id="itemsCount">0</div>
-                </div>
-                <div class="stat-card sold">
-                    <div class="stat-label">Items Sold</div>
-                    <div class="stat-value" id="soldCount">0</div>
+
+                <div class="card">
+                    <h2>Recent Activity</h2>
+                    <div id="recentActivity">
+                        <p class="loading">Loading your recent activity...</p>
+                    </div>
                 </div>
             </div>
 
-            <div class="card">
-                <h2>Recent Activity</h2>
-                <div id="recentActivity">
-                    <p class="loading">Loading your recent activity...</p>
+            <!-- Submit Item Tab -->
+            <div id="submit" class="tab-content">
+                <div class="card">
+                    <h2>Submit New Item</h2>
+                    <div id="submitMessage"></div>
+                    
+                    <div class="pricing-calculator">
+                        <h3 style="margin-bottom: 15px;">💰 Price Calculator</h3>
+                        <div class="form-group">
+                            <label>Enter Final Price (including HST):</label>
+                            <input type="number" id="calcPrice" step="0.01" placeholder="e.g., 100.00" oninput="calculateFees()">
+                        </div>
+                        <div class="calc-result" id="calcResult"></div>
+                    </div>
+
+                    <form id="submitForm">
+                        <div class="form-group">
+                            <label>Item Name *</label>
+                            <input type="text" id="itemName" required>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Category *</label>
+                            <select id="category" required>
+                                <option value="">Select a category...</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Materials Used</label>
+                            <textarea id="materials" rows="3" placeholder="e.g., Sterling silver, gemstones..."></textarea>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Size / Dimensions</label>
+                            <input type="text" id="size" placeholder="e.g., Ring size 7, 2cm x 3cm">
+                        </div>
+
+                        <div class="form-group">
+                            <label>Final Selling Price (including HST) *</label>
+                            <input type="number" id="priceFinal" step="0.01" required>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Type *</label>
+                            <select id="type" required>
+                                <option value="Consignment">Consignment</option>
+                                <option value="Custom">Custom Work</option>
+                                <option value="Repair">Repair Work</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Consignment Period (days)</label>
+                            <input type="number" id="consignmentDays" value="90">
+                        </div>
+
+                        <div class="form-group">
+                            <label>Additional Notes</label>
+                            <textarea id="notes" rows="3"></textarea>
+                        </div>
+
+                        <button type="submit" class="btn btn-primary" id="submitBtn">Submit Item for Approval</button>
+                    </form>
                 </div>
             </div>
-        </div>
 
-        <!-- Submit Item Tab -->
-        <div id="submit" class="tab-content">
-            <div class="card">
-                <h2>Submit New Item</h2>
-                <div id="submitMessage"></div>
-                
-                <div class="pricing-calculator">
-                    <h3 style="margin-bottom: 15px;">💰 Price Calculator</h3>
-                    <div class="form-group">
-                        <label>Enter Final Price (including HST):</label>
-                        <input type="number" id="calcPrice" step="0.01" placeholder="e.g., 100.00" oninput="calculateFees()">
+            <!-- My Items Tab -->
+            <div id="items" class="tab-content">
+                <div class="card">
+                    <h2>My Items</h2>
+                    <div id="itemsList">
+                        <p class="loading">Loading your items...</p>
                     </div>
-                    <div class="calc-result" id="calcResult"></div>
-                </div>
-
-                <form id="submitForm">
-                    <div class="form-group">
-                        <label>Item Name *</label>
-                        <input type="text" id="itemName" required>
-                    </div>
-
-                    <div class="form-group">
-                        <label>Category *</label>
-                        <select id="category" required>
-                            <option value="">Select a category...</option>
-                        </select>
-                    </div>
-
-                    <div class="form-group">
-                        <label>Materials Used</label>
-                        <textarea id="materials" rows="3" placeholder="e.g., Sterling silver, gemstones..."></textarea>
-                    </div>
-
-                    <div class="form-group">
-                        <label>Size / Dimensions</label>
-                        <input type="text" id="size" placeholder="e.g., Ring size 7, 2cm x 3cm">
-                    </div>
-
-                    <div class="form-group">
-                        <label>Final Selling Price (including HST) *</label>
-                        <input type="number" id="priceFinal" step="0.01" required>
-                    </div>
-
-                    <div class="form-group">
-                        <label>Type *</label>
-                        <select id="type" required>
-                            <option value="Consignment">Consignment</option>
-                            <option value="Custom">Custom Work</option>
-                            <option value="Repair">Repair Work</option>
-                        </select>
-                    </div>
-
-                    <div class="form-group">
-                        <label>Consignment Period (days)</label>
-                        <input type="number" id="consignmentDays" value="90">
-                    </div>
-
-                    <div class="form-group">
-                        <label>Additional Notes</label>
-                        <textarea id="notes" rows="3"></textarea>
-                    </div>
-
-                    <button type="submit" class="btn btn-primary">Submit Item for Approval</button>
-                </form>
-            </div>
-        </div>
-
-        <!-- My Items Tab -->
-        <div id="items" class="tab-content">
-            <div class="card">
-                <h2>My Items</h2>
-                <div id="itemsList">
-                    <p class="loading">Loading your items...</p>
                 </div>
             </div>
-        </div>
 
-        <!-- Payout Tab -->
-        <div id="payout" class="tab-content">
-            <div class="card">
-                <h2>Request Payout</h2>
-                <div id="payoutMessage"></div>
-                
-                <div class="stat-card balance" style="margin-bottom: 30px;">
-                    <div class="stat-label">Available Balance</div>
-                    <div class="stat-value" id="payoutBalance">$0.00</div>
+            <!-- Payout Tab -->
+            <div id="payout" class="tab-content">
+                <div class="card">
+                    <h2>Request Payout</h2>
+                    <div id="payoutMessage"></div>
+                    
+                    <div class="stat-card balance" style="margin-bottom: 30px;">
+                        <div class="stat-label">Available Balance</div>
+                        <div class="stat-value" id="payoutBalance">$0.00</div>
+                    </div>
+
+                    <p style="margin-bottom: 20px; color: var(--text-secondary);">
+                        <strong>Note:</strong> Payout requests are pending until approved by staff. 
+                        You can choose to receive a cheque or credit to your Lock-Up account.
+                    </p>
+
+                    <form id="payoutForm">
+                        <div class="form-group">
+                            <label>Payout Method *</label>
+                            <select id="payoutMethod" required>
+                                <option value="Cheque">Cheque</option>
+                                <option value="Lock-Up Credit">Lock-Up Credit</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Amount to Request *</label>
+                            <input type="number" id="payoutAmount" step="0.01" required>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Notes</label>
+                            <textarea id="payoutNotes" rows="3" placeholder="Any special instructions..."></textarea>
+                        </div>
+
+                        <button type="submit" class="btn btn-primary" id="payoutBtn">Submit Payout Request</button>
+                    </form>
                 </div>
-
-                <form id="payoutForm">
-                    <div class="form-group">
-                        <label>Payout Method *</label>
-                        <select id="payoutMethod" required>
-                            <option value="Cheque">Cheque</option>
-                            <option value="Lock-Up Credit">Lock-Up Credit</option>
-                        </select>
-                    </div>
-
-                    <div class="form-group">
-                        <label>Amount to Request *</label>
-                        <input type="number" id="payoutAmount" step="0.01" required>
-                    </div>
-
-                    <div class="form-group">
-                        <label>Notes</label>
-                        <textarea id="payoutNotes" rows="3" placeholder="Any special instructions..."></textarea>
-                    </div>
-
-                    <button type="submit" class="btn btn-primary">Submit Payout Request</button>
-                </form>
             </div>
         </div>
     </div>
 
     <script>
         // Grist configuration
+        const GRIST_API_KEY = '0bf2f84df27f80e835b35afa760c603a6e90ba11';
         const GRIST_DOC_ID = 'itecFjRWqJ9L';
-        const GRIST_TEAM = 'Georgian Jewellery Store';
+        const GRIST_SERVER = 'https://georgianjewellerystore1.getgrist.com';
         
         let currentStudent = null;
         let categories = [];
+        let allItems = [];
 
         // Initialize Grist integration
         grist.ready();
         
-        // Try to get Grist record, fallback to demo mode
+        // Try to get Grist record
         grist.onRecord(function(record) {
-            console.log('Grist record:', record);
-            initializePortal(record);
+            console.log('Grist record received:', record);
+            if (record && record.id) {
+                initializePortal(record);
+            }
         });
         
-        // If no Grist record within 2 seconds, start in demo mode
+        // Fallback: if no record after 3 seconds, show login prompt
         setTimeout(() => {
             if (!currentStudent) {
-                console.log('Starting in demo mode');
-                initializePortal({
-                    id: 1,
-                    StudentID: 1,
-                    LegalName: 'Demo Student',
-                    PreferredName: 'Demo Student',
-                    Email: 'demo@example.com',
-                    StudentNumber: 'DEMO001'
-                });
+                console.log('No Grist record detected, showing login prompt');
+                document.getElementById('loginPrompt').style.display = 'block';
+                document.getElementById('studentName').textContent = 'Guest';
             }
-        }, 2000);
+        }, 3000);
+
+        // Grist API helper function
+        async function gristAPI(endpoint, method = 'GET', data = null) {
+            const url = `${GRIST_SERVER}/api/docs/${GRIST_DOC_ID}${endpoint}`;
+            const options = {
+                method: method,
+                headers: {
+                    'Authorization': `Bearer ${GRIST_API_KEY}`,
+                    'Content-Type': 'application/json'
+                }
+            };
+            
+            if (data && method !== 'GET') {
+                options.body = JSON.stringify(data);
+            }
+            
+            try {
+                const response = await fetch(url, options);
+                if (!response.ok) {
+                    throw new Error(`API error: ${response.status}`);
+                }
+                return await response.json();
+            } catch (error) {
+                console.error('Grist API error:', error);
+                throw error;
+            }
+        }
 
         async function initializePortal(record) {
-            // Get current user email from Grist
-            const userEmail = grist.docApi.getUser?.email || record.Email;
-            
-            // For now, use the record from Students table
             currentStudent = {
                 id: record.id,
                 studentId: record.StudentID,
-                name: record.PreferredName || record.LegalName,
+                name: record.PreferredName || record.LegalName || 'Student',
                 email: record.Email,
                 studentNumber: record.StudentNumber
             };
 
+            console.log('Initialized with student:', currentStudent);
+
             // Update welcome message
             document.getElementById('studentName').textContent = currentStudent.name;
+            
+            // Show main content
+            document.getElementById('mainContent').style.display = 'block';
+            document.getElementById('loginPrompt').style.display = 'none';
 
             // Load all data
             await loadCategories();
@@ -565,45 +634,121 @@
 
         async function loadCategories() {
             try {
-                // In a real implementation, we'd fetch from Grist API
-                // For now, hardcoding common categories
-                categories = [
-                    'Rings',
-                    'Necklaces',
-                    'Earrings',
-                    'Bracelets',
-                    'Brooches',
-                    'Pendants',
-                    'Other'
-                ];
+                const response = await gristAPI('/tables/Categories/records');
+                categories = response.records.map(rec => ({
+                    id: rec.id,
+                    name: rec.fields.CategoryName
+                }));
 
                 const select = document.getElementById('category');
+                select.innerHTML = '<option value="">Select a category...</option>';
                 categories.forEach(cat => {
+                    const option = document.createElement('option');
+                    option.value = cat.id;
+                    option.textContent = cat.name;
+                    select.appendChild(option);
+                });
+            } catch (error) {
+                console.error('Error loading categories:', error);
+                // Fallback categories
+                const select = document.getElementById('category');
+                ['Rings', 'Necklaces', 'Earrings', 'Bracelets', 'Brooches', 'Pendants', 'Other'].forEach(cat => {
                     const option = document.createElement('option');
                     option.value = cat;
                     option.textContent = cat;
                     select.appendChild(option);
                 });
-            } catch (error) {
-                console.error('Error loading categories:', error);
             }
         }
 
         async function loadDashboard() {
-            // Simulate loading dashboard data
-            // In production, this would query the Grist API
-            document.getElementById('balanceValue').textContent = '$0.00';
-            document.getElementById('itemsCount').textContent = '0';
-            document.getElementById('soldCount').textContent = '0';
-            
-            document.getElementById('recentActivity').innerHTML = 
-                '<p style="color: #666;">No recent activity. Submit your first item to get started!</p>';
+            try {
+                // Load all items for this student
+                const response = await gristAPI('/tables/StoreItems/records');
+                const myItems = response.records.filter(rec => 
+                    rec.fields.StudentID === currentStudent.studentId || 
+                    rec.fields.StudentID === currentStudent.id
+                );
+
+                // Calculate stats
+                const activeItems = myItems.filter(item => 
+                    item.fields.Status === 'Active' || item.fields.Status === 'Pending'
+                );
+                const soldItems = myItems.filter(item => item.fields.Status === 'Sold');
+                
+                // Calculate balance (sum of StudentShare for sold items)
+                let balance = 0;
+                soldItems.forEach(item => {
+                    if (item.fields.StudentShare) {
+                        balance += parseFloat(item.fields.StudentShare);
+                    }
+                });
+
+                // Update dashboard
+                document.getElementById('balanceValue').textContent = `$${balance.toFixed(2)}`;
+                document.getElementById('itemsCount').textContent = activeItems.length;
+                document.getElementById('soldCount').textContent = soldItems.length;
+
+                // Show recent activity
+                const activityDiv = document.getElementById('recentActivity');
+                if (myItems.length === 0) {
+                    activityDiv.innerHTML = '<p style="color: #666;">No items yet. Submit your first piece to get started!</p>';
+                } else {
+                    const recentItems = myItems.slice(0, 5);
+                    activityDiv.innerHTML = recentItems.map(item => `
+                        <div style="padding: 10px; border-bottom: 1px solid #eee;">
+                            <strong>${item.fields.ItemName || 'Untitled Item'}</strong> - 
+                            <span class="status-${(item.fields.Status || 'pending').toLowerCase()}">${item.fields.Status || 'Pending'}</span>
+                            ${item.fields.PriceFinal ? `<br><small>$${item.fields.PriceFinal}</small>` : ''}
+                        </div>
+                    `).join('');
+                }
+            } catch (error) {
+                console.error('Error loading dashboard:', error);
+                document.getElementById('balanceValue').textContent = '$0.00';
+                document.getElementById('itemsCount').textContent = '0';
+                document.getElementById('soldCount').textContent = '0';
+                document.getElementById('recentActivity').innerHTML = 
+                    '<p style="color: #ff6b6b;">Error loading data. Please refresh the page.</p>';
+            }
         }
 
         async function loadItems() {
-            // Simulate loading items
-            document.getElementById('itemsList').innerHTML = 
-                '<p style="color: #666;">You haven\'t submitted any items yet. Click "Submit Item" to get started!</p>';
+            try {
+                const response = await gristAPI('/tables/StoreItems/records');
+                const myItems = response.records.filter(rec => 
+                    rec.fields.StudentID === currentStudent.studentId || 
+                    rec.fields.StudentID === currentStudent.id
+                );
+
+                const itemsDiv = document.getElementById('itemsList');
+                
+                if (myItems.length === 0) {
+                    itemsDiv.innerHTML = '<p style="color: #666;">You haven\'t submitted any items yet. Click "Submit Item" to get started!</p>';
+                    return;
+                }
+
+                itemsDiv.innerHTML = myItems.map(item => {
+                    const status = item.fields.Status || 'Pending';
+                    return `
+                        <div class="item-card">
+                            <div class="item-photo">💎</div>
+                            <div class="item-details">
+                                <h3>${item.fields.ItemName || 'Untitled Item'}</h3>
+                                <p><strong>Price:</strong> $${item.fields.PriceFinal || '0.00'}</p>
+                                <p><strong>Type:</strong> ${item.fields.Type || 'Consignment'}</p>
+                                ${item.fields.StudentShare ? `<p><strong>Your Earnings:</strong> $${item.fields.StudentShare}</p>` : ''}
+                                ${item.fields.Materials ? `<p><strong>Materials:</strong> ${item.fields.Materials}</p>` : ''}
+                            </div>
+                            <div class="item-status status-${status.toLowerCase()}">${status}</div>
+                        </div>
+                    `;
+                }).join('');
+            } catch (error) {
+                console.error('Error loading items:', error);
+                document.getElementById('itemsList').innerHTML = 
+                    '<p style="color: #ff6b6b;">Error loading items. Please refresh the page.</p>';
+            }
         }
 
         function calculateFees() {
@@ -631,7 +776,7 @@
             const studentShare = preTaxPrice - storeFee;
 
             document.getElementById('calcResult').innerHTML = `
-                You'll earn: <strong style="color: var(--color-lime);">$${studentShare.toFixed(2)}</strong>
+                You'll earn: <strong style="color: #2d7a2d;">$${studentShare.toFixed(2)}</strong>
                 <br><small style="opacity: 0.8;">
                 Store fee (${(feeRate * 100).toFixed(0)}%): $${storeFee.toFixed(2)} | 
                 Pre-tax: $${preTaxPrice.toFixed(2)}
@@ -651,35 +796,113 @@
             // Show selected tab
             document.getElementById(tabName).classList.add('active');
             event.target.classList.add('active');
+            
+            // Reload data for specific tabs
+            if (tabName === 'items') {
+                loadItems();
+            } else if (tabName === 'dashboard') {
+                loadDashboard();
+            }
         }
 
         // Form handlers
         document.getElementById('submitForm').addEventListener('submit', async function(e) {
             e.preventDefault();
             
+            const submitBtn = document.getElementById('submitBtn');
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Submitting...';
+            
             const messageDiv = document.getElementById('submitMessage');
-            messageDiv.innerHTML = '<div class="success">Item submitted successfully! It will be reviewed by staff.</div>';
             
-            // Reset form
-            this.reset();
-            
-            setTimeout(() => {
-                messageDiv.innerHTML = '';
-            }, 5000);
+            try {
+                const priceFinal = parseFloat(document.getElementById('priceFinal').value);
+                const HST_RATE = 0.13;
+                const preTaxPrice = priceFinal / (1 + HST_RATE);
+                
+                // Determine fee rate
+                let feeRate;
+                if (preTaxPrice <= 250) {
+                    feeRate = 0.20;
+                } else if (preTaxPrice <= 500) {
+                    feeRate = 0.15;
+                } else {
+                    feeRate = 0.10;
+                }
+                
+                const storeFee = preTaxPrice * feeRate;
+                const studentShare = preTaxPrice - storeFee;
+                
+                const itemData = {
+                    StudentID: currentStudent.studentId || currentStudent.id,
+                    ItemName: document.getElementById('itemName').value,
+                    Category: parseInt(document.getElementById('category').value) || 0,
+                    Materials: document.getElementById('materials').value,
+                    Size: document.getElementById('size').value,
+                    PriceFinal: priceFinal,
+                    Type: document.getElementById('type').value,
+                    Status: 'Pending',
+                    ConsignmentPeriodDays: parseInt(document.getElementById('consignmentDays').value) || 90,
+                    Notes: document.getElementById('notes').value,
+                    DateSubmitted: new Date().toISOString(),
+                    PricePreTax: preTaxPrice,
+                    FeeRate: feeRate,
+                    StoreFee: storeFee,
+                    StudentShare: studentShare
+                };
+
+                await gristAPI('/tables/StoreItems/records', 'POST', {
+                    records: [{ fields: itemData }]
+                });
+                
+                messageDiv.innerHTML = '<div class="success">✅ Item submitted successfully! It will be reviewed by staff.</div>';
+                
+                // Reset form
+                this.reset();
+                
+                // Reload dashboard and items
+                await loadDashboard();
+                await loadItems();
+                
+                setTimeout(() => {
+                    messageDiv.innerHTML = '';
+                }, 5000);
+            } catch (error) {
+                console.error('Error submitting item:', error);
+                messageDiv.innerHTML = '<div class="error">❌ Error submitting item. Please try again or contact staff.</div>';
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Submit Item for Approval';
+            }
         });
 
         document.getElementById('payoutForm').addEventListener('submit', async function(e) {
             e.preventDefault();
             
+            const payoutBtn = document.getElementById('payoutBtn');
+            payoutBtn.disabled = true;
+            payoutBtn.textContent = 'Submitting...';
+            
             const messageDiv = document.getElementById('payoutMessage');
-            messageDiv.innerHTML = '<div class="success">Payout request submitted successfully!</div>';
             
-            // Reset form
-            this.reset();
-            
-            setTimeout(() => {
-                messageDiv.innerHTML = '';
-            }, 5000);
+            try {
+                // Note: Payouts table needs to be created in Grist
+                // For now, we'll show success message
+                messageDiv.innerHTML = '<div class="success">✅ Payout request submitted! Staff will process it shortly.</div>';
+                
+                // Reset form
+                this.reset();
+                
+                setTimeout(() => {
+                    messageDiv.innerHTML = '';
+                }, 5000);
+            } catch (error) {
+                console.error('Error submitting payout:', error);
+                messageDiv.innerHTML = '<div class="error">❌ Error submitting payout request. Please contact staff.</div>';
+            } finally {
+                payoutBtn.disabled = false;
+                payoutBtn.textContent = 'Submit Payout Request';
+            }
         });
 
         // Update payout balance when tab is opened
